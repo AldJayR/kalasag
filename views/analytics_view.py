@@ -8,6 +8,13 @@ from tkinter import ttk, messagebox, filedialog
 from typing import Callable, Dict, Optional, List
 from datetime import datetime, timedelta
 
+try:
+    from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+    import matplotlib.pyplot as plt
+    MATPLOTLIB_AVAILABLE = True
+except ImportError:
+    MATPLOTLIB_AVAILABLE = False
+
 from views.theme import KalasagTheme
 from views.components import CardWidget, DashboardCard
 from controllers.analytics_controller import AnalyticsController
@@ -129,7 +136,7 @@ class AnalyticsView(ttk.Frame):
         tab.rowconfigure(0, weight=1)
         tab.rowconfigure(1, weight=1)
         
-        # Incident Types
+        # Incident Types (Top Left)
         types_card = CardWidget(tab, "Incidents by Type")
         types_card.grid(row=0, column=0, sticky='nsew', padx=(0, KalasagTheme.PAD_SMALL), pady=KalasagTheme.PAD_SMALL)
         
@@ -142,22 +149,17 @@ class AnalyticsView(ttk.Frame):
         )
         self.incident_types_list.pack(fill=tk.BOTH, expand=True)
         
-        # By Location
-        location_card = CardWidget(tab, "Incidents by Location")
-        location_card.grid(row=0, column=1, sticky='nsew', padx=(KalasagTheme.PAD_SMALL, 0), pady=KalasagTheme.PAD_SMALL)
+        # Crime Heatmap (Top Right)
+        self.heatmap_card = CardWidget(tab, "Crime Heatmap (by Purok)")
+        self.heatmap_card.grid(row=0, column=1, sticky='nsew', padx=(KalasagTheme.PAD_SMALL, 0), pady=KalasagTheme.PAD_SMALL)
         
-        self.incident_locations_list = tk.Listbox(
-            location_card.content_frame,
-            font=KalasagTheme.FONT_BODY,
-            bg=KalasagTheme.BG_CARD,
-            bd=0,
-            highlightthickness=0
-        )
-        self.incident_locations_list.pack(fill=tk.BOTH, expand=True)
+        # Container for heatmap chart
+        self.heatmap_frame = tk.Frame(self.heatmap_card.content_frame, bg=KalasagTheme.BG_CARD)
+        self.heatmap_frame.pack(fill=tk.BOTH, expand=True)
         
-        # Monthly Trend
-        trend_card = CardWidget(tab, "Monthly Trend (Last 6 Months)")
-        trend_card.grid(row=1, column=0, columnspan=2, sticky='nsew', pady=KalasagTheme.PAD_SMALL)
+        # Monthly Trend (Bottom Left)
+        trend_card = CardWidget(tab, "Monthly Trend")
+        trend_card.grid(row=1, column=0, sticky='nsew', padx=(0, KalasagTheme.PAD_SMALL), pady=KalasagTheme.PAD_SMALL)
         
         self.trend_list = tk.Listbox(
             trend_card.content_frame,
@@ -167,6 +169,14 @@ class AnalyticsView(ttk.Frame):
             highlightthickness=0
         )
         self.trend_list.pack(fill=tk.BOTH, expand=True)
+
+        # Time Analysis (Bottom Right)
+        self.time_card = CardWidget(tab, "Time Analysis")
+        self.time_card.grid(row=1, column=1, sticky='nsew', padx=(KalasagTheme.PAD_SMALL, 0), pady=KalasagTheme.PAD_SMALL)
+        
+        # Container for time chart
+        self.time_frame = tk.Frame(self.time_card.content_frame, bg=KalasagTheme.BG_CARD)
+        self.time_frame.pack(fill=tk.BOTH, expand=True)
     
     def _create_demographics_tab(self):
         """Create demographics tab."""
@@ -178,44 +188,26 @@ class AnalyticsView(ttk.Frame):
         tab.rowconfigure(0, weight=1)
         tab.rowconfigure(1, weight=1)
         
-        # By Gender
+        # By Gender (Top Left)
         gender_card = CardWidget(tab, "Population by Gender")
         gender_card.grid(row=0, column=0, sticky='nsew', padx=(0, KalasagTheme.PAD_SMALL), pady=KalasagTheme.PAD_SMALL)
         
-        self.gender_list = tk.Listbox(
-            gender_card.content_frame,
-            font=KalasagTheme.FONT_BODY,
-            bg=KalasagTheme.BG_CARD,
-            bd=0,
-            highlightthickness=0
-        )
-        self.gender_list.pack(fill=tk.BOTH, expand=True)
+        self.gender_frame = tk.Frame(gender_card.content_frame, bg=KalasagTheme.BG_CARD)
+        self.gender_frame.pack(fill=tk.BOTH, expand=True)
         
-        # By Civil Status
+        # By Civil Status (Top Right)
         civil_card = CardWidget(tab, "Population by Civil Status")
         civil_card.grid(row=0, column=1, sticky='nsew', padx=(KalasagTheme.PAD_SMALL, 0), pady=KalasagTheme.PAD_SMALL)
         
-        self.civil_list = tk.Listbox(
-            civil_card.content_frame,
-            font=KalasagTheme.FONT_BODY,
-            bg=KalasagTheme.BG_CARD,
-            bd=0,
-            highlightthickness=0
-        )
-        self.civil_list.pack(fill=tk.BOTH, expand=True)
+        self.civil_frame = tk.Frame(civil_card.content_frame, bg=KalasagTheme.BG_CARD)
+        self.civil_frame.pack(fill=tk.BOTH, expand=True)
         
-        # By Purok
+        # By Purok (Bottom Full Width)
         purok_card = CardWidget(tab, "Population by Purok")
         purok_card.grid(row=1, column=0, columnspan=2, sticky='nsew', pady=KalasagTheme.PAD_SMALL)
         
-        self.purok_list = tk.Listbox(
-            purok_card.content_frame,
-            font=KalasagTheme.FONT_BODY,
-            bg=KalasagTheme.BG_CARD,
-            bd=0,
-            highlightthickness=0
-        )
-        self.purok_list.pack(fill=tk.BOTH, expand=True)
+        self.purok_frame = tk.Frame(purok_card.content_frame, bg=KalasagTheme.BG_CARD)
+        self.purok_frame.pack(fill=tk.BOTH, expand=True)
     
     def _create_reports_tab(self):
         """Create reports generation tab."""
@@ -333,13 +325,6 @@ class AnalyticsView(ttk.Frame):
                 count = item.get('count', 0)
                 self.incident_types_list.insert(tk.END, f"{name}: {count}")
             
-            # By location
-            self.incident_locations_list.delete(0, tk.END)
-            for item in stats.get('by_location', []):
-                location = item.get('location', 'Unknown')
-                count = item.get('count', 0)
-                self.incident_locations_list.insert(tk.END, f"{location}: {count}")
-            
             # Monthly trend
             self.trend_list.delete(0, tk.END)
             for item in stats.get('monthly_trend', []):
@@ -347,34 +332,81 @@ class AnalyticsView(ttk.Frame):
                 count = item.get('count', 0)
                 self.trend_list.insert(tk.END, f"{month}: {count} incidents")
             
+            # Charts
+            if MATPLOTLIB_AVAILABLE:
+                # Clear previous charts
+                for widget in self.heatmap_frame.winfo_children():
+                    widget.destroy()
+                for widget in self.time_frame.winfo_children():
+                    widget.destroy()
+                
+                # Heatmap
+                fig_heatmap = self.analytics_ctrl.get_heatmap_figure()
+                if fig_heatmap:
+                    canvas = FigureCanvasTkAgg(fig_heatmap, master=self.heatmap_frame)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                else:
+                    tk.Label(self.heatmap_frame, text="No data available", bg=KalasagTheme.BG_CARD).pack()
+                
+                # Time Analysis
+                fig_time = self.analytics_ctrl.get_time_analysis_figure()
+                if fig_time:
+                    canvas = FigureCanvasTkAgg(fig_time, master=self.time_frame)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                else:
+                    tk.Label(self.time_frame, text="No data available", bg=KalasagTheme.BG_CARD).pack()
+            else:
+                tk.Label(self.heatmap_frame, text="Matplotlib not installed", bg=KalasagTheme.BG_CARD).pack()
+                tk.Label(self.time_frame, text="Matplotlib not installed", bg=KalasagTheme.BG_CARD).pack()
+            
         except Exception as e:
             print(f"Error loading crime analytics: {e}")
     
     def _load_demographics(self):
         """Load demographics data."""
         try:
-            stats = self.analytics_ctrl.get_demographic_statistics()
-            
-            # By gender
-            self.gender_list.delete(0, tk.END)
-            for item in stats.get('by_gender', []):
-                gender = item.get('gender', 'Unknown')
-                count = item.get('count', 0)
-                self.gender_list.insert(tk.END, f"{gender}: {count}")
-            
-            # By civil status
-            self.civil_list.delete(0, tk.END)
-            for item in stats.get('by_civil_status', []):
-                status = item.get('civil_status', 'Unknown')
-                count = item.get('count', 0)
-                self.civil_list.insert(tk.END, f"{status}: {count}")
-            
-            # By purok
-            self.purok_list.delete(0, tk.END)
-            for item in stats.get('by_purok', []):
-                purok = item.get('purok_name', item.get('name', 'Unknown'))
-                count = item.get('count', 0)
-                self.purok_list.insert(tk.END, f"{purok}: {count}")
+            if MATPLOTLIB_AVAILABLE:
+                # Clear previous charts
+                for widget in self.gender_frame.winfo_children():
+                    widget.destroy()
+                for widget in self.civil_frame.winfo_children():
+                    widget.destroy()
+                for widget in self.purok_frame.winfo_children():
+                    widget.destroy()
+                
+                # Gender Chart
+                fig_gender = self.analytics_ctrl.get_demographic_figure('gender')
+                if fig_gender:
+                    canvas = FigureCanvasTkAgg(fig_gender, master=self.gender_frame)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                else:
+                    tk.Label(self.gender_frame, text="No data available", bg=KalasagTheme.BG_CARD).pack()
+                
+                # Civil Status Chart
+                fig_civil = self.analytics_ctrl.get_demographic_figure('civil_status')
+                if fig_civil:
+                    canvas = FigureCanvasTkAgg(fig_civil, master=self.civil_frame)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                else:
+                    tk.Label(self.civil_frame, text="No data available", bg=KalasagTheme.BG_CARD).pack()
+                
+                # Purok Chart
+                fig_purok = self.analytics_ctrl.get_demographic_figure('purok')
+                if fig_purok:
+                    canvas = FigureCanvasTkAgg(fig_purok, master=self.purok_frame)
+                    canvas.draw()
+                    canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+                else:
+                    tk.Label(self.purok_frame, text="No data available", bg=KalasagTheme.BG_CARD).pack()
+            else:
+                # Fallback to text lists if matplotlib not available
+                tk.Label(self.gender_frame, text="Matplotlib not installed", bg=KalasagTheme.BG_CARD).pack()
+                tk.Label(self.civil_frame, text="Matplotlib not installed", bg=KalasagTheme.BG_CARD).pack()
+                tk.Label(self.purok_frame, text="Matplotlib not installed", bg=KalasagTheme.BG_CARD).pack()
             
         except Exception as e:
             print(f"Error loading demographics: {e}")
@@ -397,7 +429,7 @@ class AnalyticsView(ttk.Frame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".txt",
                 filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-                initialfilename=f"demographics_summary_{datetime.now().strftime('%Y%m%d')}.txt"
+                initialfile=f"demographics_summary_{datetime.now().strftime('%Y%m%d')}.txt"
             )
             
             if filename:
@@ -430,7 +462,7 @@ class AnalyticsView(ttk.Frame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".txt",
                 filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-                initialfilename=f"crime_statistics_{datetime.now().strftime('%Y%m%d')}.txt"
+                initialfile=f"crime_statistics_{datetime.now().strftime('%Y%m%d')}.txt"
             )
             
             if filename:
@@ -463,7 +495,7 @@ class AnalyticsView(ttk.Frame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".csv",
                 filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-                initialfilename=f"{filename_prefix}_{datetime.now().strftime('%Y%m%d')}.csv"
+                initialfile=f"{filename_prefix}_{datetime.now().strftime('%Y%m%d')}.csv"
             )
             
             if filename:

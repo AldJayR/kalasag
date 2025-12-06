@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import init_database, get_connection, DATABASE_PATH
 from models.resident import ResidentModel, HouseholdModel, PurokModel
-from controllers.resident_controller import ResidentController, HouseholdController
+from controllers.resident_controller import ResidentController
 from utils.validators import (
     validate_name, validate_birthdate, validate_sex,
     validate_civil_status, validate_contact_number

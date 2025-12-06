@@ -63,6 +63,82 @@ class AnalyticsController:
             return False, f"Error retrieving heatmap data: {str(e)}", None
     
     @staticmethod
+    def get_heatmap_figure(days_back: int = 30, chart_type: str = 'bar') -> Optional[Any]:
+        """
+        Generate crime heatmap figure for embedding (FR-4.1).
+        
+        Returns:
+            Matplotlib Figure object or None
+        """
+        if not MATPLOTLIB_AVAILABLE:
+            return None
+        
+        try:
+            data = AnalyticsModel.get_incident_count_by_purok(days_back=days_back)
+            
+            if not data:
+                return None
+            
+            # Create figure
+            fig, ax = plt.subplots(figsize=(6, 4))
+            
+            if chart_type == 'bar':
+                # Bar chart
+                puroks = [d['purok_name'] for d in data]
+                counts = [d['incident_count'] for d in data]
+                colors = [d['severity_color'] for d in data]
+                
+                bars = ax.bar(puroks, counts, color=colors, edgecolor='black', linewidth=0.5)
+                
+                ax.set_xlabel('Purok', fontsize=10)
+                ax.set_ylabel('Incident Count', fontsize=10)
+                ax.set_title(f'Crime Heatmap (Last {days_back} Days)', fontsize=12, fontweight='bold')
+                
+                # Rotate labels if many puroks
+                if len(puroks) > 5:
+                    plt.xticks(rotation=45, ha='right', fontsize=8)
+                else:
+                    plt.xticks(fontsize=9)
+                
+                plt.yticks(fontsize=9)
+                
+                # Add value labels on bars
+                for bar, count in zip(bars, counts):
+                    if count > 0:
+                        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                               str(count), ha='center', va='bottom', fontsize=8)
+                
+            else:  # pie chart
+                # Filter out zero counts for pie
+                pie_data = [(d['purok_name'], d['incident_count'], d['severity_color']) 
+                           for d in data if d['incident_count'] > 0]
+                
+                if not pie_data:
+                    ax.text(0.5, 0.5, 'No Incidents Recorded', ha='center', va='center',
+                           fontsize=12, transform=ax.transAxes)
+                else:
+                    labels = [d[0] for d in pie_data]
+                    sizes = [d[1] for d in pie_data]
+                    colors = [d[2] for d in pie_data]
+                    
+                    wedges, texts, autotexts = ax.pie(
+                        sizes, labels=labels, colors=colors,
+                        autopct='%1.1f%%', startangle=90,
+                        explode=[0.02] * len(sizes),
+                        textprops={'fontsize': 9}
+                    )
+                    
+                    ax.set_title(f'Crime Distribution (Last {days_back} Days)', 
+                                fontsize=12, fontweight='bold')
+            
+            plt.tight_layout()
+            return fig
+            
+        except Exception as e:
+            print(f"Error generating heatmap figure: {e}")
+            return None
+
+    @staticmethod
     def generate_heatmap_chart(
         days_back: int = 30,
         output_path: str = None,
@@ -201,6 +277,54 @@ class AnalyticsController:
         
         return periods
     
+    @staticmethod
+    def get_time_analysis_figure(days_back: int = 30) -> Optional[Any]:
+        """
+        Generate time-series analysis figure for embedding (FR-4.2).
+        
+        Returns:
+            Matplotlib Figure object or None
+        """
+        if not MATPLOTLIB_AVAILABLE:
+            return None
+        
+        try:
+            hourly_data = AnalyticsModel.get_incidents_by_time_of_day(days_back=days_back)
+            
+            # Create figure
+            fig, ax = plt.subplots(figsize=(6, 4))
+            
+            # Hourly distribution (line chart)
+            hours = [d['hour'] for d in hourly_data]
+            counts = [d['incident_count'] for d in hourly_data]
+            
+            ax.plot(hours, counts, color=AnalyticsController.CHART_COLORS['primary'], 
+                    linewidth=2, marker='o', markersize=4)
+            ax.fill_between(hours, counts, alpha=0.3, color=AnalyticsController.CHART_COLORS['primary'])
+            
+            ax.set_xlabel('Hour of Day', fontsize=10)
+            ax.set_ylabel('Incident Count', fontsize=10)
+            ax.set_title('Incidents by Hour of Day', fontsize=12, fontweight='bold')
+            ax.set_xticks(range(0, 24, 4))
+            ax.set_xticklabels(['12AM', '4AM', '8AM', '12PM', '4PM', '8PM'], fontsize=9)
+            plt.yticks(fontsize=9)
+            ax.grid(True, alpha=0.3)
+            
+            # Highlight peak hours
+            if counts:
+                max_count = max(counts)
+                peak_hours = [h for h, c in zip(hours, counts) if c == max_count and max_count > 0]
+                for peak in peak_hours:
+                    ax.axvline(x=peak, color=AnalyticsController.CHART_COLORS['hotspot'], 
+                               linestyle='--', alpha=0.7)
+            
+            plt.tight_layout()
+            return fig
+            
+        except Exception as e:
+            print(f"Error generating time analysis figure: {e}")
+            return None
+
     @staticmethod
     def generate_time_chart(
         days_back: int = 30,
@@ -474,6 +598,74 @@ class AnalyticsController:
             'monthly_trend': AnalyticsModel.get_monthly_trend(months_back=6)
         }
     
+    @staticmethod
+    def get_demographic_figure(category: str) -> Optional[Any]:
+        """
+        Generate demographic figure for embedding.
+        
+        Args:
+            category: 'gender', 'civil_status', or 'purok'
+            
+        Returns:
+            Matplotlib Figure object or None
+        """
+        if not MATPLOTLIB_AVAILABLE:
+            return None
+        
+        try:
+            data = []
+            title = ""
+            
+            if category == 'gender':
+                data = AnalyticsModel.get_demographic_by_gender()
+                title = "Population by Gender"
+                label_key = 'gender'
+            elif category == 'civil_status':
+                data = AnalyticsModel.get_demographic_by_civil_status()
+                title = "Population by Civil Status"
+                label_key = 'civil_status'
+            elif category == 'purok':
+                data = AnalyticsModel.get_demographic_by_purok()
+                title = "Population by Purok"
+                label_key = 'purok_name'
+            else:
+                return None
+            
+            if not data:
+                return None
+            
+            # Create figure
+            fig, ax = plt.subplots(figsize=(6, 4))
+            
+            labels = [d.get(label_key, 'Unknown') for d in data]
+            counts = [d.get('count', 0) for d in data]
+            
+            if category == 'purok':
+                # Bar chart for purok (too many for pie)
+                bars = ax.bar(labels, counts, color=AnalyticsController.CHART_COLORS['primary'])
+                ax.set_title(title, fontsize=12, fontweight='bold')
+                plt.xticks(rotation=45, ha='right', fontsize=8)
+                
+                # Add value labels
+                for bar, count in zip(bars, counts):
+                    if count > 0:
+                        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.1,
+                               str(count), ha='center', va='bottom', fontsize=8)
+            else:
+                # Pie chart for others
+                wedges, texts, autotexts = ax.pie(
+                    counts, labels=labels, autopct='%1.1f%%', startangle=90,
+                    textprops={'fontsize': 9}
+                )
+                ax.set_title(title, fontsize=12, fontweight='bold')
+            
+            plt.tight_layout()
+            return fig
+            
+        except Exception as e:
+            print(f"Error generating demographic figure: {e}")
+            return None
+
     @staticmethod
     def get_demographic_statistics() -> Dict[str, Any]:
         """

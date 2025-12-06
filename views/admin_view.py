@@ -500,7 +500,7 @@ class AdminView(ttk.Frame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".csv",
                 filetypes=[("CSV files", "*.csv")],
-                initialfilename=f"audit_log_{datetime.now().strftime('%Y%m%d')}.csv"
+                initialfile=f"audit_log_{datetime.now().strftime('%Y%m%d')}.csv"
             )
             
             if filename:
@@ -516,7 +516,7 @@ class AdminView(ttk.Frame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".db",
                 filetypes=[("Database files", "*.db"), ("All files", "*.*")],
-                initialfilename=f"kalasag_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+                initialfile=f"kalasag_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
             )
             
             if filename:
@@ -537,7 +537,7 @@ class AdminView(ttk.Frame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".csv",
                 filetypes=[("CSV files", "*.csv")],
-                initialfilename=f"{table_name}_{datetime.now().strftime('%Y%m%d')}.csv"
+                initialfile=f"{table_name}_{datetime.now().strftime('%Y%m%d')}.csv"
             )
             
             if filename:

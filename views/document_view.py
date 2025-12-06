@@ -318,12 +318,17 @@ class DocumentView(ttk.Frame):
                     filename = filedialog.asksaveasfilename(
                         defaultextension=".pdf",
                         filetypes=[("PDF files", "*.pdf")],
-                        initialfilename=f"{document['doc_type'].replace(' ', '_')}_{selected['log_id']}.pdf"
+                        initialfile=f"{document['doc_type'].replace(' ', '_')}_{selected['log_id']}.pdf"
                     )
                     
                     if filename:
                         pdf_gen = PDFGenerator()
-                        success = pdf_gen.generate_document(document['doc_type'], resident, document, filename)
+                        # Merge resident data into document data for the generator
+                        if resident:
+                            document.update(resident)
+                        
+                        # generate_document takes (doc_data, output_path)
+                        success = pdf_gen.generate_document(document, filename)
                         
                         if success:
                             self.status_callback(f"PDF saved to {filename}", 'success')
@@ -339,7 +344,7 @@ class DocumentView(ttk.Frame):
             filename = filedialog.asksaveasfilename(
                 defaultextension=".csv",
                 filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-                initialfilename=f"documents_report_{datetime.now().strftime('%Y%m%d')}.csv"
+                initialfile=f"documents_report_{datetime.now().strftime('%Y%m%d')}.csv"
             )
             
             if filename:

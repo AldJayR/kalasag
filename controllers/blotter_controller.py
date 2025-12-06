@@ -149,6 +149,14 @@ class BlotterController:
         """Get a blotter case by ID with all related data."""
         return BlotterCaseModel.get_by_id(case_id)
     
+    def get_case(self, case_id: int) -> Optional[Dict[str, Any]]:
+        """Alias for get_blotter_case."""
+        return self.get_blotter_case(case_id)
+    
+    def get_case_involvements(self, case_id: int) -> List[Dict[str, Any]]:
+        """Get all persons involved in a case."""
+        return CaseInvolvementModel.get_involvements(case_id)
+
     def get_blotter_by_case_number(self, case_number: str) -> Optional[Dict[str, Any]]:
         """Get a blotter case by case number."""
         return BlotterCaseModel.get_by_case_number(case_number)
@@ -303,6 +311,10 @@ class BlotterController:
     
     def update_case(self, case_id: int, data: Dict[str, Any]) -> Tuple[bool, Any]:
         """Convenience method for updating a blotter case from the form."""
+        # Handle status update separately if present
+        if 'status' in data:
+            return self.update_case_status(case_id, data['status'])
+            
         return self.update_blotter_case(case_id, data)
     
     def get_recent_cases(self, limit: int = 10) -> List[Dict[str, Any]]:

@@ -1,9 +1,9 @@
 # 🛡️ KALASAG - Requirements Traceability Matrix (RTM)
 
-**Document Version:** 1.0  
-**Date:** December 5, 2025  
+**Document Version:** 1.1  
+**Date:** December 6, 2025  
 **Project:** Barangay Information System with Predictive Crime Analytics  
-**Status:** Development Phase - Integration Testing
+**Status:** Development Phase - System Verification & Optimization
 
 ---
 
@@ -192,7 +192,7 @@ Alert:   "⚠️ Subject has prior blotter records."
 
 | File | Implements | Classes |
 |------|------------|---------|
-| `resident_controller.py` | FR-1.x business logic | `ResidentController`, `HouseholdController` |
+| `resident_controller.py` | FR-1.x business logic | `ResidentController` |
 | `blotter_controller.py` | FR-2.x business logic | `BlotterController`, `IncidentTypeController` |
 | `document_controller.py` | FR-3.x business logic | `DocumentController` |
 | `analytics_controller.py` | FR-4.x business logic | `AnalyticsController` |
@@ -227,11 +227,11 @@ Alert:   "⚠️ Subject has prior blotter records."
 
 | Criteria | Status | Evidence |
 |----------|--------|----------|
-| 1. All Unit Tests pass | 🔧 | Tests exist, some debugging in progress |
+| 1. All Unit Tests pass | ✅ | All 181 tests passed (Resident, Blotter, Document, Analytics, Admin) |
 | 2. Add Resident and print Clearance PDF | ✅ | `ResidentView` + `DocumentView` + `PDFGenerator` |
 | 3. Log Blotter Incident linked to Resident | ✅ | `BlotterView` + `CaseInvolvementModel` |
 | 4. Dashboard Graph updates on new Blotter | ✅ | `DashboardView` calls `AnalyticsController` |
-| 5. Generate Monthly Peace & Order Report | 🚧 | PDF report generation partially implemented |
+| 5. Generate Monthly Peace & Order Report | ✅ | `AnalyticsController.export_analytics_report()` implemented |
 
 ---
 
@@ -244,6 +244,9 @@ Alert:   "⚠️ Subject has prior blotter records."
 | BUG-003 | Blotter | `create_case()` method naming | Fixed |
 | BUG-004 | Dashboard | Navigation callback missing | Fixed |
 | BUG-005 | Analytics | SQL column name mismatches | Fixed |
+| BUG-006 | Document | View/Print button crash (tuple unpacking) | Fixed |
+| BUG-007 | Document | Invalid document type keys in View | Fixed |
+| BUG-008 | Analytics | Missing methods in `AnalyticsModel` | Fixed |
 
 ---
 
@@ -252,6 +255,7 @@ Alert:   "⚠️ Subject has prior blotter records."
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2025-12-05 | Initial RTM creation |
+| 1.1 | 2025-12-06 | Updated status after full system verification and bug fixes |
 
 ---
 

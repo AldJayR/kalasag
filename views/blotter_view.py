@@ -84,7 +84,7 @@ class BlotterView(ttk.Frame):
         
         self.status_filter = ttk.Combobox(
             filter_frame,
-            values=['All', 'Filed', 'Under Investigation', 'Scheduled', 'Resolved', 'Dismissed'],
+            values=['All', 'Pending', 'Amicable Settlement', 'Escalated to PNP', 'Closed'],
             state='readonly',
             width=15
         )
@@ -535,13 +535,12 @@ class CaseDetailDialog(tk.Toplevel):
         ).pack(side=tk.LEFT)
         
         # Status badge
-        status = case.get('status', 'Filed')
+        status = case.get('status', 'Pending')
         status_colors = {
-            'Filed': KalasagTheme.INFO_BLUE,
-            'Under Investigation': KalasagTheme.WARNING_ORANGE,
-            'Scheduled': KalasagTheme.PRIMARY_BLUE,
-            'Resolved': KalasagTheme.SUCCESS_GREEN,
-            'Dismissed': KalasagTheme.TEXT_MUTED,
+            'Pending': KalasagTheme.WARNING_ORANGE,
+            'Amicable Settlement': KalasagTheme.SUCCESS_GREEN,
+            'Escalated to PNP': KalasagTheme.DANGER_RED,
+            'Closed': KalasagTheme.TEXT_MUTED,
         }
         
         tk.Label(
@@ -638,7 +637,7 @@ class StatusUpdateDialog(tk.Toplevel):
         tk.Label(frame, text="New Status:", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.BG_CARD, fg=KalasagTheme.TEXT_SECONDARY).pack(anchor='w')
         self.status_combo = ttk.Combobox(
             frame,
-            values=['Filed', 'Under Investigation', 'Scheduled', 'Resolved', 'Dismissed'],
+            values=['Pending', 'Amicable Settlement', 'Escalated to PNP', 'Closed'],
             state='readonly',
             font=KalasagTheme.FONT_BODY
         )
@@ -648,8 +647,8 @@ class StatusUpdateDialog(tk.Toplevel):
         btn_frame = tk.Frame(frame, bg=KalasagTheme.BG_CARD)
         btn_frame.pack(fill=tk.X, pady=KalasagTheme.PAD_MEDIUM)
         
-        tk.Button(btn_frame, text="Cancel", font=KalasagTheme.FONT_BODY, command=self.destroy).pack(side=tk.RIGHT, padx=(KalasagTheme.PAD_SMALL, 0))
-        tk.Button(btn_frame, text="Update", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.SUCCESS_GREEN, fg=KalasagTheme.TEXT_LIGHT, bd=0, command=self._update).pack(side=tk.RIGHT)
+        tk.Button(btn_frame, text="Cancel", font=KalasagTheme.FONT_BODY, padx=KalasagTheme.PAD_MEDIUM, pady=KalasagTheme.PAD_SMALL, command=self.destroy).pack(side=tk.RIGHT, padx=(KalasagTheme.PAD_SMALL, 0))
+        tk.Button(btn_frame, text="Update", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.SUCCESS_GREEN, fg=KalasagTheme.TEXT_LIGHT, bd=0, padx=KalasagTheme.PAD_MEDIUM, pady=KalasagTheme.PAD_SMALL, command=self._update).pack(side=tk.RIGHT)
         
         # Center
         self.update_idletasks()
@@ -714,7 +713,7 @@ class PersonsInvolvedDialog(tk.Toplevel):
         
         # Resident selection
         residents = self.resident_ctrl.get_all_residents()
-        res_values = [f"{r['resident_id']} - {r.get('first_name', '')} {r.get('last_name', '')}".strip() for r in residents]
+        res_values = [f"{r['res_id']} - {r.get('first_name', '')} {r.get('last_name', '')}".strip() for r in residents]
         
         self.resident_combo = ttk.Combobox(row, values=res_values, font=KalasagTheme.FONT_BODY, width=25)
         self.resident_combo.pack(side=tk.LEFT, padx=(0, KalasagTheme.PAD_SMALL))
@@ -761,7 +760,7 @@ class PersonsInvolvedDialog(tk.Toplevel):
         
         resident_id = int(resident_sel.split(' - ')[0])
         
-        success, msg = self.blotter_ctrl.add_involvement(self.case_id, resident_id, role)
+        success, msg = self.blotter_ctrl.add_person_to_case(self.case_id, resident_id, role)
         
         if success:
             self._load_persons()
@@ -778,10 +777,11 @@ class PersonsInvolvedDialog(tk.Toplevel):
         idx = selection[0]
         if idx < len(self.persons_data):
             person = self.persons_data[idx]
-            involvement_id = person.get('involvement_id')
+            res_id = person.get('res_id')
+            role = person.get('role')
             
-            if involvement_id:
-                success, msg = self.blotter_ctrl.remove_involvement(involvement_id)
+            if res_id and role:
+                success, msg = self.blotter_ctrl.remove_person_from_case(self.case_id, res_id, role)
                 if success:
                     self._load_persons()
                 else:
