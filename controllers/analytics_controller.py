@@ -79,15 +79,21 @@ class AnalyticsController:
             if not data:
                 return None
             
+            # Use Pandas if available for data processing
+            if PANDAS_AVAILABLE:
+                df = pd.DataFrame(data)
+                puroks = df['purok_name'].tolist()
+                counts = df['incident_count'].tolist()
+                colors = df['severity_color'].tolist()
+            else:
+                puroks = [d['purok_name'] for d in data]
+                counts = [d['incident_count'] for d in data]
+                colors = [d['severity_color'] for d in data]
+            
             # Create figure
             fig, ax = plt.subplots(figsize=(6, 4))
             
             if chart_type == 'bar':
-                # Bar chart
-                puroks = [d['purok_name'] for d in data]
-                counts = [d['incident_count'] for d in data]
-                colors = [d['severity_color'] for d in data]
-                
                 bars = ax.bar(puroks, counts, color=colors, edgecolor='black', linewidth=0.5)
                 
                 ax.set_xlabel('Purok', fontsize=10)
@@ -291,12 +297,19 @@ class AnalyticsController:
         try:
             hourly_data = AnalyticsModel.get_incidents_by_time_of_day(days_back=days_back)
             
+            # Use Pandas if available
+            if PANDAS_AVAILABLE:
+                df = pd.DataFrame(hourly_data)
+                hours = df['hour'].tolist()
+                counts = df['incident_count'].tolist()
+            else:
+                hours = [d['hour'] for d in hourly_data]
+                counts = [d['incident_count'] for d in hourly_data]
+            
             # Create figure
             fig, ax = plt.subplots(figsize=(6, 4))
             
             # Hourly distribution (line chart)
-            hours = [d['hour'] for d in hourly_data]
-            counts = [d['incident_count'] for d in hourly_data]
             
             ax.plot(hours, counts, color=AnalyticsController.CHART_COLORS['primary'], 
                     linewidth=2, marker='o', markersize=4)

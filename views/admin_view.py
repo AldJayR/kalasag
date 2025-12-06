@@ -618,11 +618,17 @@ class UserFormDialog(tk.Toplevel):
         tk.Label(frame, text="Role *", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.BG_CARD, fg=KalasagTheme.TEXT_SECONDARY).pack(anchor='w')
         self.role_combo = ttk.Combobox(
             frame,
-            values=['Admin', 'Captain', 'Secretary', 'Kagawad', 'Staff'],
+            values=AdminController.VALID_ROLES,
             state='readonly',
             font=KalasagTheme.FONT_BODY
         )
-        self.role_combo.current(4)  # Default to Staff
+        # Default to Tanod if available, else first item
+        default_role = 'Tanod' if 'Tanod' in AdminController.VALID_ROLES else AdminController.VALID_ROLES[0]
+        try:
+            self.role_combo.current(AdminController.VALID_ROLES.index(default_role))
+        except ValueError:
+            self.role_combo.current(0)
+            
         self.role_combo.pack(fill=tk.X, pady=(2, KalasagTheme.PAD_MEDIUM))
         
         # Populate if editing
@@ -630,10 +636,9 @@ class UserFormDialog(tk.Toplevel):
             self.username_entry.insert(0, self.user.get('username', ''))
             self.fullname_entry.insert(0, self.user.get('full_name', ''))
             
-            role = self.user.get('role', 'Staff')
-            roles = ['Admin', 'Captain', 'Secretary', 'Kagawad', 'Staff']
-            if role in roles:
-                self.role_combo.current(roles.index(role))
+            role = self.user.get('role', default_role)
+            if role in AdminController.VALID_ROLES:
+                self.role_combo.current(AdminController.VALID_ROLES.index(role))
         
         # Buttons
         btn_frame = tk.Frame(frame, bg=KalasagTheme.BG_CARD)

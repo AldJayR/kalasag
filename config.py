@@ -4,15 +4,27 @@ Application constants and configuration.
 """
 
 import os
+import sys
 
 # Application Info
 APP_NAME = "KALASAG"
 APP_VERSION = "1.0.0"
 APP_DESCRIPTION = "Barangay Information System with Predictive Crime Analytics"
 
+# Determine if running as a script or frozen exe
+if getattr(sys, 'frozen', False):
+    # If frozen (exe), use the directory of the executable
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    # If script, use the directory of this file
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # Database
-DATABASE_PATH = os.path.join(os.path.dirname(__file__), "kalasag.db")
-BACKUP_DIR = os.path.join(os.path.dirname(__file__), "backups")
+DATABASE_PATH = os.path.join(BASE_DIR, "kalasag.db")
+BACKUP_DIR = os.path.join(BASE_DIR, "backups")
+
+# Ensure backup directory exists
+os.makedirs(BACKUP_DIR, exist_ok=True)
 
 # UI Theme Colors (Corporate Blue/Slate Gray)
 COLORS = {
