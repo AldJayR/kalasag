@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional, List, Tuple
 
 from models.admin import AuditLogModel, SystemSettingsModel, BackupModel
 from models.user import UserModel
+from database import log_audit
 
 
 class AdminController:
@@ -213,6 +214,15 @@ class AdminController:
         user = UserModel.authenticate(username.strip().lower(), password)
         
         if user:
+            # Log successful login
+            log_audit(
+                user_id=user['user_id'],
+                action='LOGIN',
+                table_name='user',
+                record_id=user['user_id'],
+                old_values=None,
+                new_values=f"User {user['username']} logged in"
+            )
             return True, f"Welcome, {user['full_name']}", user
         else:
             return False, "Invalid username or password", None

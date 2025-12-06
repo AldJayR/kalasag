@@ -247,6 +247,15 @@ def seed_default_data():
             INSERT INTO user (username, password_hash, full_name, role) 
             VALUES (?, ?, ?, ?)
         """, ("admin", default_password, "System Administrator", "Admin"))
+        
+        user_id = cursor.lastrowid
+        
+        # Log the creation manually since log_audit uses a separate connection
+        cursor.execute("""
+            INSERT INTO audit_log (user_id, action, table_name, record_id, new_values)
+            VALUES (?, ?, ?, ?, ?)
+        """, (user_id, 'CREATE_USER', 'user', user_id, "System initialized with default admin"))
+        
         print("✅ Default Admin user created (username: admin, password: admin123)")
     
     conn.commit()

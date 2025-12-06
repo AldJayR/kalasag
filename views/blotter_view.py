@@ -164,11 +164,11 @@ class BlotterView(ttk.Frame):
                 data.append({
                     'case_id': c.get('case_id'),
                     'case_number': c.get('case_number', 'N/A'),
-                    'incident_type': c.get('incident_type', c.get('name', 'N/A')),
+                    'incident_type': c.get('incident_type_name', 'N/A'),
                     'date_time': c.get('date_time', ''),
-                    'location': c.get('location', ''),
+                    'location': c.get('purok_name', 'N/A'),
                     'status': c.get('status', 'Filed'),
-                    'priority': c.get('priority', 'Normal'),
+                    'priority': c.get('severity', 'Normal'),
                 })
             
             self.cases_table.load_data(data)
@@ -191,11 +191,11 @@ class BlotterView(ttk.Frame):
                 data.append({
                     'case_id': c.get('case_id'),
                     'case_number': c.get('case_number', 'N/A'),
-                    'incident_type': c.get('incident_type', c.get('name', 'N/A')),
+                    'incident_type': c.get('incident_type_name', 'N/A'),
                     'date_time': c.get('date_time', ''),
-                    'location': c.get('location', ''),
+                    'location': c.get('purok_name', 'N/A'),
                     'status': c.get('status', 'Filed'),
-                    'priority': c.get('priority', 'Normal'),
+                    'priority': c.get('severity', 'Normal'),
                 })
             
             self.cases_table.load_data(data)
@@ -238,7 +238,7 @@ class BlotterView(ttk.Frame):
     
     def _add_case(self):
         """Add new case."""
-        dialog = CaseFormDialog(self, "New Case", self.blotter_ctrl, self.current_user)
+        dialog = CaseFormDialog(self, "New Case", self.blotter_ctrl, self.resident_ctrl, self.current_user)
         if dialog.show():
             self._load_cases()
             self.status_callback("Case created successfully", 'success')
@@ -257,7 +257,7 @@ class BlotterView(ttk.Frame):
         if selected:
             case = self.blotter_ctrl.get_case(selected['case_id'])
             if case:
-                dialog = CaseFormDialog(self, "Edit Case", self.blotter_ctrl, self.current_user, case)
+                dialog = CaseFormDialog(self, "Edit Case", self.blotter_ctrl, self.resident_ctrl, self.current_user, case)
                 if dialog.show():
                     self._load_cases()
                     self.status_callback("Case updated successfully", 'success')
@@ -281,10 +281,11 @@ class BlotterView(ttk.Frame):
 class CaseFormDialog(tk.Toplevel):
     """Dialog for adding/editing cases."""
     
-    def __init__(self, parent, title: str, controller: BlotterController, current_user: Dict, case: Dict = None):
+    def __init__(self, parent, title: str, controller: BlotterController, resident_controller: ResidentController, current_user: Dict, case: Dict = None):
         super().__init__(parent)
         
         self.controller = controller
+        self.resident_controller = resident_controller
         self.current_user = current_user
         self.case = case
         self.result = False
@@ -307,17 +308,30 @@ class CaseFormDialog(tk.Toplevel):
     
     def _build_form(self):
         """Build the form."""
+        # Buttons (Fixed at bottom)
+        btn_frame = tk.Frame(self, bg=KalasagTheme.BG_CARD, padx=KalasagTheme.PAD_LARGE, pady=KalasagTheme.PAD_MEDIUM)
+        btn_frame.pack(side=tk.BOTTOM, fill=tk.X)
+        
+        tk.Button(btn_frame, text="Cancel", font=KalasagTheme.FONT_BODY, command=self.destroy).pack(side=tk.RIGHT, padx=(KalasagTheme.PAD_SMALL, 0))
+        tk.Button(btn_frame, text="Save", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.PRIMARY_BLUE, fg=KalasagTheme.TEXT_LIGHT, bd=0, command=self._save).pack(side=tk.RIGHT)
+
         # Scrollable frame
         canvas = tk.Canvas(self, bg=KalasagTheme.BG_CARD, highlightthickness=0)
         scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
         form = tk.Frame(canvas, bg=KalasagTheme.BG_CARD, padx=KalasagTheme.PAD_LARGE, pady=KalasagTheme.PAD_LARGE)
         
+        # Ensure form fills width
+        def on_canvas_configure(event):
+            canvas.itemconfig(window_id, width=event.width)
+        
+        window_id = canvas.create_window((0, 0), window=form, anchor="nw")
+        canvas.bind("<Configure>", on_canvas_configure)
+        
         form.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
-        canvas.create_window((0, 0), window=form, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
         
-        canvas.pack(side="left", fill="both", expand=True)
         scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
         
         # Incident Type
         tk.Label(form, text="Incident Type *", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.BG_CARD, fg=KalasagTheme.TEXT_SECONDARY).pack(anchor='w')
@@ -343,6 +357,21 @@ class CaseFormDialog(tk.Toplevel):
         self.purok_combo = ttk.Combobox(form, values=self.purok_values, state='readonly', font=KalasagTheme.FONT_BODY)
         self.purok_combo.pack(fill=tk.X, pady=(2, KalasagTheme.PAD_MEDIUM))
         
+        # Complainant
+        tk.Label(form, text="Complainant", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.BG_CARD, fg=KalasagTheme.TEXT_SECONDARY).pack(anchor='w')
+        
+        residents = self.resident_controller.get_all_residents()
+        self.resident_values = [f"{r['res_id']} - {r['last_name']}, {r['first_name']}" for r in residents]
+        
+        self.complainant_combo = ttk.Combobox(form, values=self.resident_values, state='readonly', font=KalasagTheme.FONT_BODY)
+        self.complainant_combo.pack(fill=tk.X, pady=(2, KalasagTheme.PAD_MEDIUM))
+        
+        # Respondent
+        tk.Label(form, text="Respondent", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.BG_CARD, fg=KalasagTheme.TEXT_SECONDARY).pack(anchor='w')
+        
+        self.respondent_combo = ttk.Combobox(form, values=self.resident_values, state='readonly', font=KalasagTheme.FONT_BODY)
+        self.respondent_combo.pack(fill=tk.X, pady=(2, KalasagTheme.PAD_MEDIUM))
+        
         # Narrative
         tk.Label(form, text="Narrative *", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.BG_CARD, fg=KalasagTheme.TEXT_SECONDARY).pack(anchor='w')
         self.narrative_text = tk.Text(form, height=6, font=KalasagTheme.FONT_BODY)
@@ -362,13 +391,6 @@ class CaseFormDialog(tk.Toplevel):
         # Populate if editing
         if self.case:
             self._populate_form()
-        
-        # Buttons
-        btn_frame = tk.Frame(form, bg=KalasagTheme.BG_CARD)
-        btn_frame.pack(fill=tk.X, pady=KalasagTheme.PAD_LARGE)
-        
-        tk.Button(btn_frame, text="Cancel", font=KalasagTheme.FONT_BODY, command=self.destroy).pack(side=tk.RIGHT, padx=(KalasagTheme.PAD_SMALL, 0))
-        tk.Button(btn_frame, text="Save", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.PRIMARY_BLUE, fg=KalasagTheme.TEXT_LIGHT, bd=0, command=self._save).pack(side=tk.RIGHT)
     
     def _populate_form(self):
         """Populate form with existing data."""
@@ -393,6 +415,24 @@ class CaseFormDialog(tk.Toplevel):
         
         self.narrative_text.insert('1.0', self.case.get('narrative', ''))
         
+        # Set complainant (first one found)
+        complainants = self.case.get('complainants', [])
+        if complainants:
+            res_id = complainants[0].get('res_id')
+            for val in self.complainant_combo['values']:
+                if val.startswith(f"{res_id} - "):
+                    self.complainant_combo.set(val)
+                    break
+                    
+        # Set respondent (first one found)
+        respondents = self.case.get('respondents', [])
+        if respondents:
+            res_id = respondents[0].get('res_id')
+            for val in self.respondent_combo['values']:
+                if val.startswith(f"{res_id} - "):
+                    self.respondent_combo.set(val)
+                    break
+        
         if hasattr(self, 'status_combo'):
             self.status_combo.set(self.case.get('status', 'Pending'))
     
@@ -402,6 +442,8 @@ class CaseFormDialog(tk.Toplevel):
         datetime_val = self.datetime_entry.get().strip()
         purok_selection = self.purok_combo.get()
         narrative = self.narrative_text.get('1.0', tk.END).strip()
+        complainant_selection = self.complainant_combo.get()
+        respondent_selection = self.respondent_combo.get()
         
         if not type_selection:
             messagebox.showerror("Error", "Incident type is required")
@@ -418,6 +460,10 @@ class CaseFormDialog(tk.Toplevel):
         if not narrative:
             messagebox.showerror("Error", "Narrative is required")
             return
+            
+        if not complainant_selection and not respondent_selection:
+            messagebox.showerror("Error", "At least one complainant or respondent is required")
+            return
         
         type_id = int(type_selection.split(' - ')[0])
         purok_id = int(purok_selection.split(' - ')[0])
@@ -428,7 +474,17 @@ class CaseFormDialog(tk.Toplevel):
             'purok_id': purok_id,
             'narrative': narrative,
             'reported_by': self.current_user.get('user_id'),
+            'complainants': [],
+            'respondents': []
         }
+        
+        if complainant_selection:
+            res_id = int(complainant_selection.split(' - ')[0])
+            data['complainants'].append(res_id)
+            
+        if respondent_selection:
+            res_id = int(respondent_selection.split(' - ')[0])
+            data['respondents'].append(res_id)
         
         if self.case and hasattr(self, 'status_combo'):
             data['status'] = self.status_combo.get()

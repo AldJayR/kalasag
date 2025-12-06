@@ -57,9 +57,9 @@ class DocumentView(ttk.Frame):
         btn_frame.pack(side=tk.RIGHT)
         
         doc_types = [
-            ("📜 Clearance", "Barangay Clearance"),
-            ("📋 Indigency", "Certificate of Indigency"),
-            ("🏠 Residency", "Certificate of Residency"),
+            ("📜 Clearance", "Clearance"),
+            ("📋 Indigency", "Indigency"),
+            ("🏠 Residency", "Residency"),
             ("📝 Business", "Business Permit"),
         ]
         
@@ -95,7 +95,7 @@ class DocumentView(ttk.Frame):
         
         self.type_filter = ttk.Combobox(
             filter_frame,
-            values=['All', 'Barangay Clearance', 'Certificate of Indigency', 'Certificate of Residency', 'Business Permit'],
+            values=['All', 'Clearance', 'Indigency', 'Residency', 'Business Permit'],
             state='readonly',
             width=20
         )
@@ -191,10 +191,10 @@ class DocumentView(ttk.Frame):
                         resident_name = f"{resident.get('first_name', '')} {resident.get('last_name', '')}".strip()
                 
                 data.append({
-                    'log_id': d.get('log_id'),
-                    'document_type': d.get('document_type', ''),
+                    'log_id': d.get('doc_id'),
+                    'document_type': d.get('doc_type', ''),
                     'resident_name': resident_name,
-                    'issue_date': d.get('issue_date', ''),
+                    'issue_date': d.get('issued_at', ''),
                     'purpose': d.get('purpose', ''),
                     'or_number': d.get('or_number', ''),
                 })
@@ -294,16 +294,18 @@ class DocumentView(ttk.Frame):
         """View selected document."""
         selected = self.docs_table.get_selected()
         if selected:
-            document = self.doc_ctrl.get_document(selected['log_id'])
-            if document:
+            success, msg, document = self.doc_ctrl.get_document(selected['log_id'])
+            if success and document:
                 DocumentDetailDialog(self, document, self.resident_ctrl)
+            else:
+                self.status_callback(msg, 'error')
     
     def _print_document(self):
         """Print/generate PDF for selected document."""
         selected = self.docs_table.get_selected()
         if selected:
-            document = self.doc_ctrl.get_document(selected['log_id'])
-            if document:
+            success, msg, document = self.doc_ctrl.get_document(selected['log_id'])
+            if success and document:
                 try:
                     from utils.pdf_generator import PDFGenerator
                     
@@ -316,12 +318,12 @@ class DocumentView(ttk.Frame):
                     filename = filedialog.asksaveasfilename(
                         defaultextension=".pdf",
                         filetypes=[("PDF files", "*.pdf")],
-                        initialfilename=f"{document['document_type'].replace(' ', '_')}_{selected['log_id']}.pdf"
+                        initialfilename=f"{document['doc_type'].replace(' ', '_')}_{selected['log_id']}.pdf"
                     )
                     
                     if filename:
                         pdf_gen = PDFGenerator()
-                        success = pdf_gen.generate_document(document['document_type'], resident, document, filename)
+                        success = pdf_gen.generate_document(document['doc_type'], resident, document, filename)
                         
                         if success:
                             self.status_callback(f"PDF saved to {filename}", 'success')
@@ -363,7 +365,7 @@ class IssueDocumentDialog(tk.Toplevel):
         self.result = False
         
         self.title(f"Issue {doc_type}")
-        self.geometry("450x400")
+        self.geometry("450x500")
         self.resizable(False, False)
         self.transient(parent)
         self.grab_set()
@@ -417,11 +419,6 @@ class IssueDocumentDialog(tk.Toplevel):
         self.amount_entry.insert(0, "0.00")
         self.amount_entry.pack(fill=tk.X, pady=(2, KalasagTheme.PAD_MEDIUM))
         
-        # Remarks
-        tk.Label(frame, text="Remarks", font=KalasagTheme.FONT_BODY, bg=KalasagTheme.BG_CARD, fg=KalasagTheme.TEXT_SECONDARY).pack(anchor='w')
-        self.remarks_entry = ttk.Entry(frame, font=KalasagTheme.FONT_BODY)
-        self.remarks_entry.pack(fill=tk.X, pady=(2, KalasagTheme.PAD_MEDIUM))
-        
         # Buttons
         btn_frame = tk.Frame(frame, bg=KalasagTheme.BG_CARD)
         btn_frame.pack(fill=tk.X, pady=KalasagTheme.PAD_LARGE)
@@ -435,7 +432,6 @@ class IssueDocumentDialog(tk.Toplevel):
         purpose = self.purpose_entry.get().strip()
         or_number = self.or_entry.get().strip()
         amount = self.amount_entry.get().strip()
-        remarks = self.remarks_entry.get().strip()
         
         if not resident_sel:
             messagebox.showerror("Error", "Please select a resident")
@@ -453,18 +449,14 @@ class IssueDocumentDialog(tk.Toplevel):
             messagebox.showerror("Error", "Invalid amount")
             return
         
-        data = {
-            'res_id': resident_id,
-            'document_type': self.doc_type,
-            'purpose': purpose,
-            'or_number': or_number or None,
-            'amount': amount_val,
-            'remarks': remarks or None,
-            'issued_by': self.current_user.get('user_id'),
-            'issue_date': datetime.now().strftime("%Y-%m-%d"),
-        }
-        
-        success, msg = self.doc_ctrl.issue_document(data)
+        success, msg, _ = self.doc_ctrl.issue_document(
+            resident_id=resident_id,
+            doc_type=self.doc_type,
+            purpose=purpose,
+            issued_by=self.current_user.get('user_id'),
+            amount=amount_val,
+            or_number=or_number or None
+        )
         
         if success:
             self.result = True
@@ -505,7 +497,7 @@ class DocumentDetailDialog(tk.Toplevel):
         # Header
         tk.Label(
             frame,
-            text=document.get('document_type', 'Document'),
+            text=document.get('doc_type', 'Document'),
             font=KalasagTheme.FONT_H2,
             bg=KalasagTheme.BG_CARD,
             fg=KalasagTheme.TEXT_PRIMARY
@@ -526,7 +518,6 @@ class DocumentDetailDialog(tk.Toplevel):
             ('Purpose', document.get('purpose', 'N/A')),
             ('OR Number', document.get('or_number', 'N/A')),
             ('Amount', f"₱{document.get('amount', 0):.2f}"),
-            ('Remarks', document.get('remarks', 'N/A')),
         ]
         
         for label, value in details:

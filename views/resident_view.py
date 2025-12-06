@@ -101,7 +101,6 @@ class ResidentView(ttk.Frame):
             ('gender', 'Gender', 80),
             ('civil_status', 'Civil Status', 100),
             ('purok_name', 'Purok', 100),
-            ('voter_status', 'Voter', 80),
         ]
         
         self.residents_table = DataTable(
@@ -189,7 +188,6 @@ class ResidentView(ttk.Frame):
         # Data table
         columns = [
             ('household_id', 'ID', 50),
-            ('household_head', 'Household Head', 200),
             ('address', 'Address', 250),
             ('purok_name', 'Purok', 100),
             ('member_count', 'Members', 80),
@@ -255,7 +253,6 @@ class ResidentView(ttk.Frame):
                     'gender': r.get('sex', ''),
                     'civil_status': r.get('civil_status', ''),
                     'purok_name': r.get('purok_name', 'N/A'),
-                    'voter_status': 'Yes' if r.get('is_voter') else 'No',
                 })
             
             self.residents_table.load_data(data)
@@ -277,7 +274,6 @@ class ResidentView(ttk.Frame):
                 
                 data.append({
                     'household_id': h.get('hh_id'),
-                    'household_head': h.get('household_head', 'N/A'),
                     'address': address,
                     'purok_name': h.get('purok_name', 'N/A'),
                     'member_count': h.get('member_count', 0),

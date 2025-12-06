@@ -214,16 +214,21 @@ class DashboardView(ttk.Frame):
             from models.admin import AuditLogModel
             logs = AuditLogModel.get_all(limit=20)
             
+            if not logs:
+                self.activity_list.insert(tk.END, "No recent activity")
+                return
+
             for log in logs:
                 timestamp = log.get('timestamp', '')[:16]
                 action = log.get('action', 'Unknown')
                 table = log.get('table_name', '')
-                username = log.get('username', 'System')
+                username = log.get('username') or 'System'
                 
                 activity_text = f"{timestamp} | {username} - {action} ({table})"
                 self.activity_list.insert(tk.END, activity_text)
-        except Exception:
+        except Exception as e:
             self.activity_list.insert(tk.END, "No recent activity")
+            print(f"Error loading activity: {e}")
     
     def _quick_add_resident(self):
         """Quick action: Add resident."""

@@ -15,6 +15,50 @@ class AnalyticsModel:
     """Model for analytics data queries."""
     
     @staticmethod
+    def _calculate_severity_level(count: int) -> str:
+        """Calculate severity level based on incident count."""
+        if count == 0:
+            return 'safe'
+        elif count <= 3:
+            return 'caution'
+        else:
+            return 'hotspot'
+
+    @staticmethod
+    def _get_severity_color(level: str) -> str:
+        """Get color code for severity level."""
+        colors = {
+            'safe': '#28a745',      # Green
+            'caution': '#ffc107',   # Yellow
+            'hotspot': '#dc3545'    # Red
+        }
+        return colors.get(level, '#6c757d')
+
+    @staticmethod
+    def _format_hour(hour: int) -> str:
+        """Format hour (0-23) to 12-hour format with AM/PM."""
+        if hour == 0:
+            return "12:00 AM"
+        elif hour == 12:
+            return "12:00 PM"
+        elif hour < 12:
+            return f"{hour}:00 AM"
+        else:
+            return f"{hour-12}:00 PM"
+
+    @staticmethod
+    def _get_time_period(hour: int) -> str:
+        """Get time period classification."""
+        if 5 <= hour < 12:
+            return "Morning"
+        elif 12 <= hour < 18:
+            return "Afternoon"
+        elif 18 <= hour < 22:
+            return "Evening"
+        else:
+            return "Night"
+
+    @staticmethod
     def get_incident_count_by_purok(days_back: int = 30) -> List[Dict]:
         """
         Get incident counts grouped by purok for heatmap visualization.
@@ -50,19 +94,18 @@ class AnalyticsModel:
                 count = row[2] or 0
                 
                 # Determine risk level
-                if count == 0:
-                    risk_level = 'safe'
-                elif count <= 3:
-                    risk_level = 'caution'
-                else:
-                    risk_level = 'hotspot'
+                risk_level = AnalyticsModel._calculate_severity_level(count)
+                color = AnalyticsModel._get_severity_color(risk_level)
                 
                 results.append({
                     'purok_id': row[0],
                     'purok_name': row[1],
                     'name': row[1],
                     'count': count,
-                    'risk_level': risk_level
+                    'incident_count': count,
+                    'risk_level': risk_level,
+                    'severity_level': risk_level,
+                    'severity_color': color
                 })
             
             return results
@@ -70,6 +113,11 @@ class AnalyticsModel:
         finally:
             conn.close()
     
+    @staticmethod
+    def get_incidents_by_type(days_back: int = 30) -> List[Dict]:
+        """Alias for get_incident_count_by_type."""
+        return AnalyticsModel.get_incident_count_by_type(days_back)
+
     @staticmethod
     def get_incident_count_by_type(days_back: int = 30) -> List[Dict]:
         """
@@ -104,7 +152,9 @@ class AnalyticsModel:
                 {
                     'type_id': row[0],
                     'name': row[1],
-                    'count': row[2] or 0
+                    'type_name': row[1],
+                    'count': row[2] or 0,
+                    'incident_count': row[2] or 0
                 }
                 for row in rows
             ]
@@ -112,6 +162,88 @@ class AnalyticsModel:
         finally:
             conn.close()
     
+    @staticmethod
+    def get_incidents_by_time_of_day(days_back: int = 30) -> List[Dict]:
+        """Get incidents grouped by hour of day."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            
+            cursor.execute("""
+                SELECT 
+                    strftime('%H', date_time) as hour,
+                    COUNT(*) as count
+                FROM blotter_case
+                WHERE date_time >= ?
+                GROUP BY hour
+                ORDER BY hour
+            """, (cutoff_date,))
+            
+            rows = cursor.fetchall()
+            counts = {int(row[0]): row[1] for row in rows}
+            
+            results = []
+            for hour in range(24):
+                count = counts.get(hour, 0)
+                results.append({
+                    'hour': hour,
+                    'incident_count': count,
+                    'time_label': AnalyticsModel._format_hour(hour),
+                    'period': AnalyticsModel._get_time_period(hour)
+                })
+            
+            return results
+            
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_incidents_by_day_of_week(days_back: int = 30) -> List[Dict]:
+        """Get incidents grouped by day of week."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            
+            # SQLite strftime %w returns 0-6 (Sunday-Saturday)
+            cursor.execute("""
+                SELECT 
+                    strftime('%w', date_time) as day_idx,
+                    COUNT(*) as count
+                FROM blotter_case
+                WHERE date_time >= ?
+                GROUP BY day_idx
+                ORDER BY day_idx
+            """, (cutoff_date,))
+            
+            rows = cursor.fetchall()
+            counts = {int(row[0]): row[1] for row in rows}
+            
+            days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+            results = []
+            
+            for i, day_name in enumerate(days):
+                results.append({
+                    'day_index': i,
+                    'day_name': day_name,
+                    'incident_count': counts.get(i, 0)
+                })
+            
+            return results
+            
+        finally:
+            conn.close()
+
+    @staticmethod
+    def get_most_dangerous_hours(days_back: int = 30, top_n: int = 3) -> List[Dict]:
+        """Get the hours with most incidents."""
+        data = AnalyticsModel.get_incidents_by_time_of_day(days_back)
+        sorted_data = sorted(data, key=lambda x: x['incident_count'], reverse=True)
+        return sorted_data[:top_n]
+
     @staticmethod
     def get_incident_count_by_location(days_back: int = 30) -> List[Dict]:
         """
@@ -171,23 +303,129 @@ class AnalyticsModel:
         try:
             cursor.execute("""
                 SELECT 
-                    strftime('%Y-%m', date_time) as month,
+                    strftime('%Y-%m', date_time) as month_str,
+                    strftime('%Y', date_time) as year,
+                    strftime('%m', date_time) as month_num,
                     COUNT(*) as incident_count
                 FROM blotter_case
                 WHERE date_time >= date('now', ? || ' months')
-                GROUP BY strftime('%Y-%m', date_time)
-                ORDER BY month
+                GROUP BY month_str
+                ORDER BY month_str
             """, (f'-{months_back}',))
             
             rows = cursor.fetchall()
             
-            return [
-                {
+            results = []
+            for row in rows:
+                # Get month name from month number
+                try:
+                    month_num = int(row[2])
+                    month_name = datetime(2000, month_num, 1).strftime('%B')
+                except (ValueError, IndexError):
+                    month_name = row[0]
+                
+                results.append({
                     'month': row[0],
-                    'count': row[1]
-                }
-                for row in rows
-            ]
+                    'year': row[1],
+                    'month_name': month_name,
+                    'count': row[3],
+                    'incident_count': row[3]
+                })
+            
+            return results
+            
+        finally:
+            conn.close()
+
+    @staticmethod
+    def generate_patrol_recommendations(days_back: int = 30) -> List[Dict]:
+        """Generate patrol recommendations based on hotspots and time analysis."""
+        # Get hotspot puroks
+        puroks = AnalyticsModel.get_incident_count_by_purok(days_back)
+        hotspots = [p for p in puroks if p['severity_level'] in ('hotspot', 'caution')]
+        
+        recommendations = []
+        priority = 1
+        
+        for purok in hotspots:
+            # Analyze peak times for this purok
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            cursor.execute("""
+                SELECT strftime('%H', date_time) as hour, COUNT(*) as count
+                FROM blotter_case
+                WHERE purok_id = ? AND date_time >= ?
+                GROUP BY hour
+                ORDER BY count DESC
+                LIMIT 1
+            """, (purok['purok_id'], cutoff_date))
+            
+            row = cursor.fetchone()
+            conn.close()
+            
+            peak_hour = int(row[0]) if row else 0
+            time_range = f"{AnalyticsModel._format_hour(peak_hour)} - {AnalyticsModel._format_hour((peak_hour + 4) % 24)}"
+            
+            recommendations.append({
+                'priority': priority,
+                'purok_name': purok['purok_name'],
+                'time_range': time_range,
+                'reason': f"High incident count ({purok['incident_count']}) mostly around {AnalyticsModel._format_hour(peak_hour)}",
+                'severity_level': purok['severity_level']
+            })
+            priority += 1
+            
+        # If no hotspots, provide general recommendation
+        if not recommendations:
+            recommendations.append({
+                'priority': 1,
+                'purok_name': "All Areas",
+                'time_range': "8:00 PM - 12:00 AM",
+                'reason': "Routine patrol (No hotspots detected)",
+                'severity_level': 'safe'
+            })
+            
+        return recommendations
+
+    @staticmethod
+    def get_dashboard_summary(days_back: int = 30) -> Dict:
+        """Get summary statistics for dashboard."""
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        try:
+            cutoff_date = (datetime.now() - timedelta(days=days_back)).strftime("%Y-%m-%d")
+            
+            # Total incidents
+            cursor.execute("SELECT COUNT(*) FROM blotter_case WHERE date_time >= ?", (cutoff_date,))
+            total_incidents = cursor.fetchone()[0]
+            
+            # Pending cases
+            cursor.execute("SELECT COUNT(*) FROM blotter_case WHERE status = 'Pending'")
+            pending_cases = cursor.fetchone()[0]
+            
+            # Total residents
+            cursor.execute("SELECT COUNT(*) FROM resident WHERE status = 'Active'")
+            total_residents = cursor.fetchone()[0]
+            
+            # Hotspot counts
+            purok_data = AnalyticsModel.get_incident_count_by_purok(days_back)
+            hotspot_count = sum(1 for p in purok_data if p['severity_level'] == 'hotspot')
+            caution_count = sum(1 for p in purok_data if p['severity_level'] == 'caution')
+            safe_count = sum(1 for p in purok_data if p['severity_level'] == 'safe')
+            
+            return {
+                'total_incidents': total_incidents,
+                'pending_cases': pending_cases,
+                'total_residents': total_residents,
+                'hotspot_count': hotspot_count,
+                'caution_count': caution_count,
+                'safe_count': safe_count,
+                'start_date': cutoff_date,
+                'end_date': datetime.now().strftime("%Y-%m-%d")
+            }
             
         finally:
             conn.close()

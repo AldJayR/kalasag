@@ -223,6 +223,11 @@ class DocumentController:
         return DocumentModel.get_resident_documents(resident_id)
     
     @staticmethod
+    def get_documents_by_date_range(start_date: str = None, end_date: str = None) -> List[Dict[str, Any]]:
+        """Get documents within a date range."""
+        return DocumentModel.get_all(start_date=start_date, end_date=end_date)
+
+    @staticmethod
     def search_documents(
         doc_type: str = None,
         resident_name: str = None,
@@ -243,11 +248,13 @@ class DocumentController:
         Returns:
             List of matching documents
         """
-        return DocumentModel.search(
+        if resident_name:
+            return DocumentModel.search(resident_name)
+            
+        return DocumentModel.get_all(
             doc_type=doc_type,
-            resident_name=resident_name,
-            date_from=date_from,
-            date_to=date_to,
+            start_date=date_from,
+            end_date=date_to,
             limit=limit
         )
     

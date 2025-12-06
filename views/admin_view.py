@@ -322,7 +322,7 @@ class AdminView(ttk.Frame):
                 data.append({
                     'log_id': l.get('log_id'),
                     'timestamp': l.get('timestamp', ''),
-                    'username': l.get('username', 'System'),
+                    'username': l.get('username') or 'System',
                     'action': l.get('action', ''),
                     'table_name': l.get('table_name', ''),
                     'record_id': l.get('record_id', ''),
@@ -784,7 +784,7 @@ class AuditDetailDialog(tk.Toplevel):
         details = [
             ('ID', log.get('log_id')),
             ('Timestamp', log.get('timestamp')),
-            ('User', log.get('username', 'System')),
+            ('User', log.get('username') or 'System'),
             ('Action', log.get('action')),
             ('Table', log.get('table_name')),
             ('Record ID', log.get('record_id')),
